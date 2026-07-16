@@ -1,0 +1,46 @@
+{
+  "name": "quietdo-app",
+  "version": "0.4.0",
+  "description": "QuietDo (轻作), a local-first personal task workspace",
+  "private": true,
+  "license": "MIT",
+  "homepage": "https://github.com/weieast1314/quietdo#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/weieast1314/quietdo.git",
+    "directory": "apps/desktop"
+  },
+  "bugs": {
+    "url": "https://github.com/weieast1314/quietdo/issues"
+  },
+  "type": "module",
+  "scripts": {
+    "dev": "vite --host 127.0.0.1 --port 1420",
+    "build": "tsc --noEmit && vite build",
+    "preview": "vite preview",
+    "tauri": "tauri",
+    "desktop:dev": "tauri dev",
+    "desktop:build": "tauri build --bundles app,dmg",
+    "desktop:build:universal": "tauri build --target universal-apple-darwin --bundles app,dmg",
+    "android:init": "tauri android init",
+    "android:dev": "tauri android dev",
+    "android:build": "bash scripts/build-android-test.sh",
+    "android:build:debug": "tauri android build --debug --apk",
+    "android:build:release": "tauri android build --target aarch64 --target armv7 --apk",
+    "android:build:aab": "tauri android build --aab"
+  },
+  "dependencies": {
+    "@tauri-apps/api": "2.11.1",
+    "react": "19.2.6",
+    "react-dom": "19.2.6"
+  },
+  "devDependencies": {
+    "@tauri-apps/cli": "2.11.4",
+    "@types/node": "22.19.19",
+    "@types/react": "19.2.14",
+    "@types/react-dom": "19.2.3",
+    "@vitejs/plugin-react": "6.0.3",
+    "typescript": "5.9.3",
+    "vite": "8.1.5"
+  }
+}

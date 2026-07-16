@@ -1,0 +1,30 @@
+:root {
+  --font-geist-sans: -apple-system, BlinkMacSystemFont, "SF Pro Text", "PingFang SC", sans-serif;
+  --font-geist-mono: "SFMono-Regular", Menlo, Monaco, monospace;
+}
+
+html,
+body,
+#root {
+  min-height: 100%;
+}
+
+body {
+  user-select: none;
+}
+
+input,
+textarea,
+[contenteditable="true"] {
+  user-select: text;
+}
+
+.desktop-topbar {
+  padding-left: 24px;
+}
+
+@media (max-width: 760px) {
+  .desktop-topbar {
+    padding-left: 15px;
+  }
+}

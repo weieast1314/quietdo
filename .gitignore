@@ -1,0 +1,42 @@
+.DS_Store
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# Local configuration and credentials
+.env
+.env.*
+!.env.example
+*.pem
+*.p12
+*.pfx
+*.jks
+*.keystore
+keystore.properties
+
+# JavaScript
+**/node_modules/
+**/dist/
+**/.next/
+**/.vinext/
+**/.wrangler/
+**/coverage/
+**/npm-debug.log*
+
+# Rust and generated native projects
+**/target/
+apps/desktop/src-tauri/gen/
+
+# Local packaging output. Distributables belong in GitHub Releases.
+releases/*.apk
+releases/*.aab
+releases/*.idsig
+releases/*.dmg
+releases/*.app
+releases/*.exe
+releases/*.msi
+releases/*.AppImage
+releases/*.deb
+releases/*.rpm
+releases/*.sha256

@@ -1,0 +1,1051 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>TaskFlow — 待办事项管理应用</title>
+<style>
+/* ============ 设计令牌 ============ */
+:root{
+  --bg:#f5f6fa; --surface:#ffffff; --surface-2:#f8f9fc; --border:#e8eaf0;
+  --text:#1a1d29; --text-2:#5c6172; --text-3:#9aa0b0;
+  --primary:#6366f1; --primary-dark:#4f46e5; --primary-light:#eef2ff;
+  --success:#10b981; --success-light:#ecfdf5;
+  --warning:#f59e0b; --warning-light:#fffbeb;
+  --danger:#ef4444; --danger-light:#fef2f2;
+  --shadow:0 1px 3px rgba(0,0,0,.06),0 1px 2px rgba(0,0,0,.04);
+  --shadow-md:0 4px 12px rgba(0,0,0,.08);
+  --shadow-lg:0 12px 32px rgba(0,0,0,.12);
+  --radius:14px; --radius-sm:10px;
+}
+[data-theme="dark"]{
+  --bg:#0f1117; --surface:#1a1d29; --surface-2:#151823; --border:#2a2e3d;
+  --text:#e8eaf0; --text-2:#a0a5b5; --text-3:#6b7185;
+  --primary:#818cf8; --primary-dark:#6366f1; --primary-light:#1e2030;
+  --success:#34d399; --success-light:#0f2a22;
+  --warning:#fbbf24; --warning-light:#2a2410;
+  --danger:#f87171; --danger-light:#2a1518;
+  --shadow:0 1px 3px rgba(0,0,0,.3); --shadow-md:0 4px 12px rgba(0,0,0,.4); --shadow-lg:0 12px 32px rgba(0,0,0,.5);
+}
+*{margin:0;padding:0;box-sizing:border-box}
+html,body{height:100%}
+body{
+  font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Hiragino Sans GB","Microsoft YaHei",sans-serif;
+  background:var(--bg);color:var(--text);transition:background .25s,color .25s;
+  font-size:14px;line-height:1.6;-webkit-font-smoothing:antialiased;
+}
+button{font-family:inherit;cursor:pointer;border:none;background:none;color:inherit}
+input,textarea,select{font-family:inherit;font-size:inherit;color:inherit;outline:none}
+::-webkit-scrollbar{width:8px;height:8px}
+::-webkit-scrollbar-thumb{background:var(--border);border-radius:4px}
+::-webkit-scrollbar-thumb:hover{background:var(--text-3)}
+
+/* ============ 布局 ============ */
+.app{display:flex;flex-direction:column;height:100vh;overflow:hidden}
+.topbar{
+  display:flex;align-items:center;justify-content:space-between;
+  padding:0 24px;height:60px;background:var(--surface);
+  border-bottom:1px solid var(--border);flex-shrink:0;z-index:20;
+}
+.brand{display:flex;align-items:center;gap:10px;font-weight:700;font-size:17px}
+.brand-icon{
+  width:34px;height:34px;border-radius:10px;display:flex;align-items:center;justify-content:center;
+  background:linear-gradient(135deg,var(--primary),#a855f7);color:#fff;font-size:18px;
+}
+.topbar-actions{display:flex;align-items:center;gap:8px}
+.icon-btn{
+  width:38px;height:38px;border-radius:10px;display:flex;align-items:center;justify-content:center;
+  color:var(--text-2);transition:all .15s;
+}
+.icon-btn:hover{background:var(--surface-2);color:var(--text)}
+.icon-btn svg{width:20px;height:20px}
+.badge-dot{position:relative}
+.badge-dot::after{
+  content:'';position:absolute;top:8px;right:8px;width:7px;height:7px;
+  background:var(--danger);border-radius:50%;border:2px solid var(--surface);
+}
+
+.body{display:flex;flex:1;overflow:hidden}
+
+/* ============ 侧边栏 ============ */
+.sidebar{
+  width:260px;background:var(--surface);border-right:1px solid var(--border);
+  display:flex;flex-direction:column;flex-shrink:0;overflow-y:auto;
+}
+.sidebar-section{padding:16px 12px}
+.sidebar-label{font-size:11px;font-weight:600;color:var(--text-3);text-transform:uppercase;
+  letter-spacing:.06em;padding:0 10px 8px}
+.nav-item{
+  display:flex;align-items:center;gap:10px;padding:9px 10px;border-radius:8px;
+  color:var(--text-2);font-weight:500;transition:all .15s;width:100%;text-align:left;
+  position:relative;
+}
+.nav-item:hover{background:var(--surface-2);color:var(--text)}
+.nav-item.active{background:var(--primary-light);color:var(--primary)}
+.nav-item svg{width:18px;height:18px;flex-shrink:0}
+.nav-item .count{margin-left:auto;font-size:12px;color:var(--text-3);font-weight:600}
+.nav-item.active .count{color:var(--primary)}
+.cat-dot{width:10px;height:10px;border-radius:3px;flex-shrink:0}
+.sidebar-footer{margin-top:auto;padding:12px;border-top:1px solid var(--border)}
+.add-cat-btn{
+  display:flex;align-items:center;gap:8px;padding:8px 10px;border-radius:8px;
+  color:var(--text-3);font-weight:500;width:100%;transition:all .15s;
+}
+.add-cat-btn:hover{background:var(--surface-2);color:var(--text)}
+.add-cat-btn svg{width:16px;height:16px}
+
+/* ============ 主内容 ============ */
+.main{flex:1;display:flex;flex-direction:column;overflow:hidden}
+.main-header{
+  padding:20px 28px 14px;border-bottom:1px solid var(--border);
+  display:flex;align-items:flex-start;justify-content:space-between;gap:16px;flex-shrink:0;
+}
+.main-title{font-size:24px;font-weight:700}
+.main-subtitle{font-size:13px;color:var(--text-2);margin-top:2px}
+.search-box{
+  display:flex;align-items:center;gap:8px;background:var(--surface);border:1px solid var(--border);
+  border-radius:10px;padding:8px 12px;width:240px;transition:all .15s;
+}
+.search-box:focus-within{border-color:var(--primary);box-shadow:0 0 0 3px var(--primary-light)}
+.search-box svg{width:16px;height:16px;color:var(--text-3);flex-shrink:0}
+.search-box input{border:none;background:none;flex:1;font-size:13px}
+
+/* 统计卡片 */
+.stats-row{display:flex;gap:12px;padding:16px 28px;flex-shrink:0;overflow-x:auto}
+.stat-card{
+  background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-sm);
+  padding:14px 16px;min-width:130px;flex-shrink:0;transition:all .2s;
+}
+.stat-card:hover{box-shadow:var(--shadow-md);transform:translateY(-2px)}
+.stat-icon{width:32px;height:32px;border-radius:8px;display:flex;align-items:center;justify-content:center;margin-bottom:8px}
+.stat-icon svg{width:18px;height:18px}
+.stat-value{font-size:22px;font-weight:700;line-height:1}
+.stat-label{font-size:12px;color:var(--text-2);margin-top:4px}
+
+/* 任务列表 */
+.list-wrap{flex:1;overflow-y:auto;padding:8px 28px 100px}
+.task-item{
+  display:flex;align-items:flex-start;gap:12px;padding:14px 16px;
+  background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-sm);
+  margin-bottom:8px;transition:all .15s;cursor:pointer;position:relative;
+}
+.task-item:hover{box-shadow:var(--shadow);border-color:var(--text-3)}
+.task-item.done{opacity:.6}
+.task-item.done .task-title{text-decoration:line-through;color:var(--text-3)}
+.task-item.overdue:not(.done){border-left:3px solid var(--danger)}
+.checkbox{
+  width:20px;height:20px;border-radius:6px;border:2px solid var(--border);
+  flex-shrink:0;margin-top:1px;display:flex;align-items:center;justify-content:center;
+  transition:all .15s;cursor:pointer;
+}
+.checkbox:hover{border-color:var(--primary)}
+.checkbox.checked{background:var(--success);border-color:var(--success)}
+.checkbox.checked svg{width:14px;height:14px;color:#fff;display:block}
+.checkbox svg{display:none}
+.task-content{flex:1;min-width:0}
+.task-title{font-weight:600;font-size:14px;word-break:break-word}
+.task-note{font-size:12px;color:var(--text-2);margin-top:3px;word-break:break-word;
+  display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.task-meta{display:flex;align-items:center;gap:8px;margin-top:8px;flex-wrap:wrap}
+.tag{
+  display:inline-flex;align-items:center;gap:4px;font-size:11px;font-weight:600;
+  padding:2px 8px;border-radius:6px;
+}
+.tag-cat{background:var(--surface-2);color:var(--text-2)}
+.tag-pri-high{background:var(--danger-light);color:var(--danger)}
+.tag-pri-medium{background:var(--warning-light);color:var(--warning)}
+.tag-pri-low{background:var(--success-light);color:var(--success)}
+.tag-date{background:var(--surface-2);color:var(--text-2)}
+.tag-date.overdue{background:var(--danger-light);color:var(--danger)}
+.task-actions{display:flex;gap:4px;opacity:0;transition:opacity .15s;flex-shrink:0}
+.task-item:hover .task-actions{opacity:1}
+.task-action{
+  width:30px;height:30px;border-radius:7px;display:flex;align-items:center;justify-content:center;
+  color:var(--text-3);transition:all .15s;
+}
+.task-action:hover{background:var(--surface-2);color:var(--text)}
+.task-action.danger:hover{color:var(--danger)}
+.task-action svg{width:16px;height:16px}
+
+.empty-state{
+  text-align:center;padding:60px 20px;color:var(--text-3);
+}
+.empty-state svg{width:64px;height:64px;margin:0 auto 16px;opacity:.4}
+.empty-state h3{font-size:16px;font-weight:600;color:var(--text-2);margin-bottom:6px}
+.empty-state p{font-size:13px}
+
+/* 快速添加 */
+.quick-add{
+  position:sticky;bottom:0;left:0;right:0;
+  background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);
+  padding:14px 16px;margin:16px 0 0;box-shadow:var(--shadow-lg);display:none;
+}
+.quick-add.show{display:block}
+.quick-add-title{
+  width:100%;border:none;background:none;font-size:15px;font-weight:500;
+  color:var(--text);padding:4px 0;
+}
+.quick-add-title::placeholder{color:var(--text-3)}
+.quick-add-fields{display:flex;gap:8px;margin-top:10px;flex-wrap:wrap}
+.qa-select{
+  display:inline-flex;align-items:center;gap:6px;padding:6px 10px;border-radius:8px;
+  background:var(--surface-2);border:1px solid var(--border);font-size:12px;font-weight:500;
+  color:var(--text-2);cursor:pointer;transition:all .15s;
+}
+.qa-select:hover{border-color:var(--primary)}
+.qa-select svg{width:14px;height:14px}
+.qa-actions{display:flex;gap:8px;margin-top:12px;justify-content:flex-end}
+
+/* ============ 按钮 ============ */
+.btn{
+  display:inline-flex;align-items:center;gap:6px;padding:8px 16px;border-radius:9px;
+  font-weight:600;font-size:13px;transition:all .15s;white-space:nowrap;
+}
+.btn svg{width:16px;height:16px}
+.btn-primary{background:var(--primary);color:#fff}
+.btn-primary:hover{background:var(--primary-dark)}
+.btn-ghost{background:var(--surface-2);color:var(--text-2)}
+.btn-ghost:hover{background:var(--border);color:var(--text)}
+.btn-danger{background:var(--danger);color:#fff}
+.btn-danger:hover{opacity:.9}
+.btn-sm{padding:6px 12px;font-size:12px}
+
+/* FAB */
+.fab{
+  position:fixed;bottom:24px;right:24px;width:54px;height:54px;border-radius:50%;
+  background:linear-gradient(135deg,var(--primary),#a855f7);color:#fff;
+  display:flex;align-items:center;justify-content:center;box-shadow:var(--shadow-lg);
+  z-index:15;transition:transform .2s;
+}
+.fab:hover{transform:scale(1.08) rotate(90deg)}
+.fab svg{width:26px;height:26px}
+
+/* ============ 弹窗 ============ */
+.modal-overlay{
+  position:fixed;inset:0;background:rgba(0,0,0,.4);backdrop-filter:blur(4px);
+  z-index:50;display:none;align-items:center;justify-content:center;padding:20px;
+}
+.modal-overlay.show{display:flex;animation:fadeIn .2s}
+.modal{
+  background:var(--surface);border-radius:var(--radius);width:100%;max-width:480px;
+  box-shadow:var(--shadow-lg);max-height:90vh;overflow-y:auto;animation:slideUp .25s;
+}
+.modal.feedback-modal{max-width:420px}
+.modal-header{display:flex;align-items:center;justify-content:space-between;padding:20px 24px;border-bottom:1px solid var(--border)}
+.modal-title{font-size:17px;font-weight:700}
+.modal-body{padding:20px 24px}
+.modal-footer{display:flex;justify-content:flex-end;gap:8px;padding:16px 24px;border-top:1px solid var(--border)}
+.field{margin-bottom:16px}
+.field-label{display:block;font-size:12px;font-weight:600;color:var(--text-2);margin-bottom:6px}
+.field-input,.field-textarea,.field-select{
+  width:100%;background:var(--surface-2);border:1px solid var(--border);border-radius:9px;
+  padding:10px 12px;font-size:14px;transition:all .15s;
+}
+.field-input:focus,.field-textarea:focus,.field-select:focus{border-color:var(--primary);box-shadow:0 0 0 3px var(--primary-light)}
+.field-textarea{resize:vertical;min-height:70px}
+.field-row{display:flex;gap:12px}
+.field-row .field{flex:1}
+
+/* 优先级/分类选择按钮组 */
+.option-group{display:flex;gap:8px;flex-wrap:wrap}
+.option-btn{
+  display:inline-flex;align-items:center;gap:6px;padding:8px 14px;border-radius:9px;
+  border:1px solid var(--border);background:var(--surface-2);font-size:13px;font-weight:600;
+  color:var(--text-2);transition:all .15s;
+}
+.option-btn:hover{border-color:var(--primary)}
+.option-btn.selected{border-color:var(--primary);background:var(--primary-light);color:var(--primary)}
+
+/* 星级评分 */
+.rating{display:flex;gap:4px}
+.rating-star{width:28px;height:28px;cursor:pointer;color:var(--border);transition:all .15s}
+.rating-star:hover,.rating-star.active{color:var(--warning);transform:scale(1.15)}
+.rating-star svg{width:24px;height:24px}
+
+/* 反馈类型 */
+.feedback-types{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:16px}
+.fb-type{
+  flex:1;min-width:90px;padding:12px;border-radius:10px;border:1px solid var(--border);
+  background:var(--surface-2);text-align:center;cursor:pointer;transition:all .15s;
+}
+.fb-type:hover{border-color:var(--primary)}
+.fb-type.selected{border-color:var(--primary);background:var(--primary-light)}
+.fb-type svg{width:24px;height:24px;margin:0 auto 6px;display:block}
+.fb-type span{font-size:12px;font-weight:600}
+
+/* Toast */
+.toast-wrap{position:fixed;bottom:24px;left:50%;transform:translateX(-50%);z-index:100;display:flex;flex-direction:column;gap:8px;align-items:center}
+.toast{
+  background:var(--text);color:var(--surface);padding:10px 18px;border-radius:10px;
+  font-size:13px;font-weight:500;box-shadow:var(--shadow-lg);animation:toastIn .25s;
+  display:flex;align-items:center;gap:8px;
+}
+.toast svg{width:16px;height:16px}
+
+/* 动画 */
+@keyframes fadeIn{from{opacity:0}to{opacity:1}}
+@keyframes slideUp{from{opacity:0;transform:translateY(20px)}to{opacity:1;transform:translateY(0)}}
+@keyframes toastIn{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:translateY(0)}}
+@keyframes checkPop{0%{transform:scale(0)}60%{transform:scale(1.2)}100%{transform:scale(1)}}
+.checkbox.checked{animation:checkPop .2s}
+
+/* 响应式 */
+@media(max-width:768px){
+  .sidebar{display:none}
+  .search-box{width:140px}
+  .stats-row{padding:12px 16px}
+  .list-wrap{padding:8px 16px 100px}
+  .main-header{padding:16px}
+  .task-actions{opacity:1}
+}
+</style>
+</head>
+<body>
+<div class="app" id="app">
+  <!-- 顶部导航 -->
+  <header class="topbar">
+    <div class="brand">
+      <div class="brand-icon">✓</div>
+      <span>TaskFlow</span>
+    </div>
+    <div class="topbar-actions">
+      <button class="icon-btn" id="themeToggle" title="切换主题">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>
+      </button>
+      <button class="icon-btn badge-dot" id="feedbackBtn" title="反馈">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+      </button>
+    </div>
+  </header>
+
+  <div class="body">
+    <!-- 侧边栏 -->
+    <aside class="sidebar">
+      <div class="sidebar-section">
+        <div class="sidebar-label">视图</div>
+        <button class="nav-item active" data-filter="all">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 3h18v18H3z"/><path d="M3 9h18M9 21V9"/></svg>
+          <span>全部任务</span><span class="count" id="cnt-all">0</span>
+        </button>
+        <button class="nav-item" data-filter="today">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg>
+          <span>今天</span><span class="count" id="cnt-today">0</span>
+        </button>
+        <button class="nav-item" data-filter="upcoming">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg>
+          <span>即将到来</span><span class="count" id="cnt-upcoming">0</span>
+        </button>
+        <button class="nav-item" data-filter="overdue">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><path d="M12 9v4M12 17h.01"/></svg>
+          <span>已逾期</span><span class="count" id="cnt-overdue">0</span>
+        </button>
+        <button class="nav-item" data-filter="completed">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><path d="M22 4L12 14.01l-3-3"/></svg>
+          <span>已完成</span><span class="count" id="cnt-completed">0</span>
+        </button>
+      </div>
+      <div class="sidebar-section">
+        <div class="sidebar-label">分类</div>
+        <div id="catList"></div>
+        <button class="add-cat-btn" id="addCatBtn">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14M5 12h14"/></svg>
+          <span>新建分类</span>
+        </button>
+      </div>
+      <div class="sidebar-footer">
+        <button class="add-cat-btn" id="clearDataBtn" title="清空所有数据">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
+          <span>清空数据</span>
+        </button>
+      </div>
+    </aside>
+
+    <!-- 主内容 -->
+    <main class="main">
+      <div class="main-header">
+        <div>
+          <h1 class="main-title" id="viewTitle">全部任务</h1>
+          <p class="main-subtitle" id="viewSubtitle">管理你的所有待办事项</p>
+        </div>
+        <div class="search-box">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/></svg>
+          <input type="text" id="searchInput" placeholder="搜索任务...">
+        </div>
+      </div>
+
+      <!-- 统计 -->
+      <div class="stats-row" id="statsRow"></div>
+
+      <!-- 快速添加 -->
+      <div style="padding:0 28px">
+        <div class="quick-add" id="quickAdd">
+          <input class="quick-add-title" id="qaTitle" placeholder="任务标题，回车快速添加...">
+          <div class="quick-add-fields">
+            <div class="qa-select" id="qaCatBtn">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>
+              <span id="qaCatLabel">收件箱</span>
+            </div>
+            <div class="qa-select" id="qaPriBtn">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2L2 22h20z"/></svg>
+              <span id="qaPriLabel">中优先级</span>
+            </div>
+            <div class="qa-select" id="qaDateBtn">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg>
+              <span id="qaDateLabel">无日期</span>
+            </div>
+          </div>
+          <div class="qa-actions">
+            <button class="btn btn-ghost btn-sm" id="qaCancel">取消</button>
+            <button class="btn btn-primary btn-sm" id="qaSubmit">添加任务</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- 任务列表 -->
+      <div class="list-wrap" id="taskList"></div>
+    </main>
+  </div>
+
+  <button class="fab" id="fab" title="添加任务">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M12 5v14M5 12h14"/></svg>
+  </button>
+</div>
+
+<!-- 编辑弹窗 -->
+<div class="modal-overlay" id="editModal">
+  <div class="modal">
+    <div class="modal-header">
+      <div class="modal-title" id="editModalTitle">编辑任务</div>
+      <button class="icon-btn" data-close="editModal">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6L6 18M6 6l12 12"/></svg>
+      </button>
+    </div>
+    <div class="modal-body">
+      <div class="field">
+        <label class="field-label">任务标题</label>
+        <input class="field-input" id="editTitle" placeholder="输入任务标题">
+      </div>
+      <div class="field">
+        <label class="field-label">备注</label>
+        <textarea class="field-textarea" id="editNote" placeholder="添加详细描述（可选）"></textarea>
+      </div>
+      <div class="field-row">
+        <div class="field">
+          <label class="field-label">截止日期</label>
+          <input class="field-input" type="date" id="editDate">
+        </div>
+        <div class="field">
+          <label class="field-label">分类</label>
+          <select class="field-select" id="editCat"></select>
+        </div>
+      </div>
+      <div class="field">
+        <label class="field-label">优先级</label>
+        <div class="option-group" id="editPriGroup">
+          <button class="option-btn" data-pri="high">🔴 高</button>
+          <button class="option-btn" data-pri="medium">🟡 中</button>
+          <button class="option-btn" data-pri="low">🟢 低</button>
+        </div>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-danger btn-sm" id="editDelete">删除</button>
+      <button class="btn btn-ghost btn-sm" data-close="editModal">取消</button>
+      <button class="btn btn-primary btn-sm" id="editSave">保存</button>
+    </div>
+  </div>
+</div>
+
+<!-- 分类弹窗 -->
+<div class="modal-overlay" id="catModal">
+  <div class="modal" style="max-width:380px">
+    <div class="modal-header">
+      <div class="modal-title">新建分类</div>
+      <button class="icon-btn" data-close="catModal">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6L6 18M6 6l12 12"/></svg>
+      </button>
+    </div>
+    <div class="modal-body">
+      <div class="field">
+        <label class="field-label">分类名称</label>
+        <input class="field-input" id="catName" placeholder="如：工作、学习、生活">
+      </div>
+      <div class="field">
+        <label class="field-label">颜色</label>
+        <div class="option-group" id="catColorGroup"></div>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost btn-sm" data-close="catModal">取消</button>
+      <button class="btn btn-primary btn-sm" id="catSave">创建</button>
+    </div>
+  </div>
+</div>
+
+<!-- 反馈弹窗 -->
+<div class="modal-overlay" id="feedbackModal">
+  <div class="modal feedback-modal">
+    <div class="modal-header">
+      <div class="modal-title">分享你的反馈 💬</div>
+      <button class="icon-btn" data-close="feedbackModal">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6L6 18M6 6l12 12"/></svg>
+      </button>
+    </div>
+    <div class="modal-body">
+      <p style="font-size:13px;color:var(--text-2);margin-bottom:16px">
+        这个原型还在验证阶段，你的反馈对我们至关重要，帮助我们打造更好的产品。
+      </p>
+      <div class="feedback-types" id="fbTypes">
+        <div class="fb-type" data-type="like">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 9V5a3 3 0 0 0-3-3l-4 9v11h11.28a2 2 0 0 0 2-1.7l1.38-9a2 2 0 0 0-2-2.3zM7 22H4a2 2 0 0 1-2-2v-7a2 2 0 0 1 2-2h3"/></svg>
+          <span>喜欢</span>
+        </div>
+        <div class="fb-type" data-type="idea">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 18h6M10 22h4M12 2a7 7 0 0 0-4 12.7V17h8v-2.3A7 7 0 0 0 12 2z"/></svg>
+          <span>建议</span>
+        </div>
+        <div class="fb-type" data-type="bug">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="8" y="6" width="8" height="14" rx="4"/><path d="M19 7l-3 2M5 7l3 2M19 13h-3M5 13h3M19 19l-3-2M5 19l3-2M12 3v3"/></svg>
+          <span>问题</span>
+        </div>
+      </div>
+      <div class="field">
+        <label class="field-label">你的评分</label>
+        <div class="rating" id="ratingStars"></div>
+      </div>
+      <div class="field">
+        <label class="field-label">详细说明</label>
+        <textarea class="field-textarea" id="fbContent" placeholder="告诉我们你的想法、遇到的问题或希望增加的功能..."></textarea>
+      </div>
+      <div class="field">
+        <label class="field-label">联系方式（选填）</label>
+        <input class="field-input" id="fbEmail" placeholder="邮箱，方便我们回访">
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost btn-sm" data-close="feedbackModal">稍后再说</button>
+      <button class="btn btn-primary btn-sm" id="fbSubmit">提交反馈</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast-wrap" id="toastWrap"></div>
+
+<script>
+/* ============================================================
+   TaskFlow 待办事项管理应用 — 原型
+   核心功能：任务 CRUD、分类、优先级、截止日期、筛选、搜索、统计
+   验证功能：用户反馈收集、事件埋点、本地数据持久化
+   ============================================================ */
+
+/* ---------- 数据层 ---------- */
+const STORAGE_KEY = 'taskflow_data_v1';
+const ANALYTICS_KEY = 'taskflow_analytics_v1';
+const FEEDBACK_KEY = 'taskflow_feedback_v1';
+
+const DEFAULT_CATS = [
+  {id:'inbox',name:'收件箱',color:'#9aa0b0'},
+  {id:'work',name:'工作',color:'#6366f1'},
+  {id:'personal',name:'个人',color:'#10b981'},
+  {id:'study',name:'学习',color:'#f59e0b'},
+];
+
+const todayStr = () => { const d=new Date(); return d.toISOString().split('T')[0]; };
+const addDays = (n) => { const d=new Date(); d.setDate(d.getDate()+n); return d.toISOString().split('T')[0]; };
+
+function seedTasks(){
+  return [
+    {id:uid(),title:'完成产品需求文档（PRD）',note:'整理待办应用的核心功能清单和验收标准',cat:'work',priority:'high',date:todayStr(),done:false,createdAt:Date.now()},
+    {id:uid(),title:'设计原型交互稿',note:'使用快速原型工具完成核心页面',cat:'work',priority:'high',date:addDays(1),done:false,createdAt:Date.now()-1000},
+    {id:uid(),title:'阅读《精益创业》第3章',note:'学习最小可行产品的构建方法',cat:'study',priority:'medium',date:addDays(2),done:false,createdAt:Date.now()-2000},
+    {id:uid(),title:'预约牙科检查',cat:'personal',priority:'low',date:addDays(5),done:false,createdAt:Date.now()-3000},
+    {id:uid(),title:'整理本周工作周报',cat:'work',priority:'medium',date:addDays(-1),done:false,createdAt:Date.now()-4000},
+    {id:uid(),title:'配置开发环境',note:'安装 Node.js 和 Git',cat:'study',priority:'medium',date:'',done:true,createdAt:Date.now()-5000},
+  ];
+}
+
+let state = loadData();
+function uid(){ return Date.now().toString(36)+Math.random().toString(36).slice(2,7); }
+
+function loadData(){
+  try{
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if(raw){ const d=JSON.parse(raw); if(d.tasks&&d.cats) return d; }
+  }catch(e){}
+  return { tasks:seedTasks(), cats:[...DEFAULT_CATS], theme:'light', currentFilter:'all', currentCat:null };
+}
+function saveData(){ localStorage.setItem(STORAGE_KEY, JSON.stringify(state)); }
+
+/* ---------- 埋点系统 ---------- */
+function loadAnalytics(){
+  try{ return JSON.parse(localStorage.getItem(ANALYTICS_KEY))||{events:[]}; }catch(e){ return {events:[]}; }
+}
+function track(event, props={}){
+  const analytics = loadAnalytics();
+  analytics.events.push({event, props, ts:Date.now(), url:location.hash});
+  // 限制存储量
+  if(analytics.events.length>500) analytics.events = analytics.events.slice(-500);
+  localStorage.setItem(ANALYTICS_KEY, JSON.stringify(analytics));
+  // 模拟上报（原型阶段仅本地存储，生产可接入 GA / 自建后端）
+  console.log('[Track]', event, props);
+}
+
+/* ---------- 工具函数 ---------- */
+function $(s,p=document){ return p.querySelector(s); }
+function $$(s,p=document){ return [...p.querySelectorAll(s)]; }
+function esc(s){ return String(s||'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+function catById(id){ return state.cats.find(c=>c.id===id) || {name:'收件箱',color:'#9aa0b0'}; }
+function priLabel(p){ return {high:'高',medium:'中',low:'低'}[p]||'中'; }
+function priFullLabel(p){ return {high:'高优先级',medium:'中优先级',low:'低优先级'}[p]||'中优先级'; }
+
+function formatDate(dateStr){
+  if(!dateStr) return null;
+  const d = new Date(dateStr+'T00:00:00');
+  const today = new Date(); today.setHours(0,0,0,0);
+  const diff = Math.round((d-today)/86400000);
+  if(diff===0) return '今天';
+  if(diff===1) return '明天';
+  if(diff===-1) return '昨天';
+  if(diff>1 && diff<=7) return diff+'天后';
+  if(diff<0) return '逾期'+Math.abs(diff)+'天';
+  return (d.getMonth()+1)+'月'+d.getDate()+'日';
+}
+function isOverdue(t){ return t.date && !t.done && new Date(t.date+'T00:00:00') < new Date(new Date().setHours(0,0,0,0)); }
+function isToday(t){ return t.date === todayStr(); }
+function isUpcoming(t){ if(!t.date||t.done) return false; const d=new Date(t.date+'T00:00:00'); const today=new Date(); today.setHours(0,0,0,0); return d>today; }
+
+/* ---------- 渲染 ---------- */
+function render(){
+  renderSidebar();
+  renderStats();
+  renderTasks();
+  renderHeader();
+}
+
+function renderHeader(){
+  const titles = {
+    all:['全部任务','管理你的所有待办事项'],
+    today:['今天','今天需要完成的任务'],
+    upcoming:['即将到来','未来几天的任务'],
+    overdue:['已逾期','需要尽快处理的任务'],
+    completed:['已完成','已经完成的任务'],
+  };
+  const f = state.currentFilter;
+  if(f==='cat'){
+    const c = catById(state.currentCat);
+    $('#viewTitle').textContent = c.name;
+    $('#viewSubtitle').textContent = '该分类下的所有任务';
+  }else{
+    $('#viewTitle').textContent = titles[f][0];
+    $('#viewSubtitle').textContent = titles[f][1];
+  }
+}
+
+function renderSidebar(){
+  // 视图计数
+  $('#cnt-all').textContent = state.tasks.length;
+  $('#cnt-today').textContent = state.tasks.filter(isToday).length;
+  $('#cnt-upcoming').textContent = state.tasks.filter(isUpcoming).length;
+  $('#cnt-overdue').textContent = state.tasks.filter(isOverdue).length;
+  $('#cnt-completed').textContent = state.tasks.filter(t=>t.done).length;
+
+  // 分类列表
+  const html = state.cats.map(c=>{
+    const count = state.tasks.filter(t=>t.cat===c.id && !t.done).length;
+    return `<button class="nav-item" data-cat="${c.id}">
+      <span class="cat-dot" style="background:${c.color}"></span>
+      <span>${esc(c.name)}</span><span class="count">${count}</span>
+    </button>`;
+  }).join('');
+  $('#catList').innerHTML = html;
+
+  // 高亮当前
+  $$('.nav-item').forEach(n=>{
+    n.classList.remove('active');
+    if(state.currentFilter==='cat' && n.dataset.cat===state.currentCat) n.classList.add('active');
+    else if(state.currentFilter!=='cat' && n.dataset.filter===state.currentFilter) n.classList.add('active');
+  });
+}
+
+function getFilteredTasks(){
+  let list = [...state.tasks];
+  const f = state.currentFilter;
+  if(f==='today') list = list.filter(isToday);
+  else if(f==='upcoming') list = list.filter(isUpcoming);
+  else if(f==='overdue') list = list.filter(isOverdue);
+  else if(f==='completed') list = list.filter(t=>t.done);
+  else if(f==='cat') list = list.filter(t=>t.cat===state.currentCat);
+
+  const q = $('#searchInput').value.trim().toLowerCase();
+  if(q) list = list.filter(t=> t.title.toLowerCase().includes(q) || (t.note||'').toLowerCase().includes(q));
+
+  // 排序：未完成在前，再按优先级，再按日期
+  const priOrder={high:0,medium:1,low:2};
+  list.sort((a,b)=>{
+    if(a.done!==b.done) return a.done?1:-1;
+    if(priOrder[a.priority]!==priOrder[b.priority]) return priOrder[a.priority]-priOrder[b.priority];
+    if(a.date&&b.date) return a.date.localeCompare(b.date);
+    if(a.date) return -1; if(b.date) return 1;
+    return b.createdAt-a.createdAt;
+  });
+  return list;
+}
+
+function renderTasks(){
+  const list = getFilteredTasks();
+  const wrap = $('#taskList');
+  if(list.length===0){
+    wrap.innerHTML = `<div class="empty-state">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>
+      <h3>暂无任务</h3>
+      <p>点击右下角 + 按钮添加你的第一个任务</p>
+    </div>`;
+    return;
+  }
+  wrap.innerHTML = list.map(t=>{
+    const c = catById(t.cat);
+    const overdue = isOverdue(t);
+    const dateLabel = formatDate(t.date);
+    return `<div class="task-item ${t.done?'done':''} ${overdue?'overdue':''}" data-id="${t.id}">
+      <div class="checkbox ${t.done?'checked':''}" data-toggle="${t.id}">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><path d="M20 6L9 17l-5-5"/></svg>
+      </div>
+      <div class="task-content" data-edit="${t.id}">
+        <div class="task-title">${esc(t.title)}</div>
+        ${t.note?`<div class="task-note">${esc(t.note)}</div>`:''}
+        <div class="task-meta">
+          <span class="tag tag-cat"><span style="width:8px;height:8px;border-radius:2px;background:${c.color};display:inline-block"></span>${esc(c.name)}</span>
+          <span class="tag tag-pri-${t.priority}">${priLabel(t.priority)}优先级</span>
+          ${dateLabel?`<span class="tag tag-date ${overdue?'overdue':''}">📅 ${dateLabel}</span>`:''}
+        </div>
+      </div>
+      <div class="task-actions">
+        <button class="task-action" data-edit="${t.id}" title="编辑">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.12 2.12 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+        </button>
+        <button class="task-action danger" data-delete="${t.id}" title="删除">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
+        </button>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+function renderStats(){
+  const total = state.tasks.length;
+  const done = state.tasks.filter(t=>t.done).length;
+  const doing = total-done;
+  const overdue = state.tasks.filter(isOverdue).length;
+  const rate = total? Math.round(done/total*100):0;
+
+  const cards = [
+    {icon:'📋',bg:'var(--primary-light)',color:'var(--primary)',val:total,label:'总任务'},
+    {icon:'⏳',bg:'var(--warning-light)',color:'var(--warning)',val:doing,label:'进行中'},
+    {icon:'✅',bg:'var(--success-light)',color:'var(--success)',val:done,label:'已完成'},
+    {icon:'📈',bg:'var(--primary-light)',color:'var(--primary)',val:rate+'%',label:'完成率'},
+    {icon:'⚠️',bg:'var(--danger-light)',color:'var(--danger)',val:overdue,label:'已逾期'},
+  ];
+  $('#statsRow').innerHTML = cards.map(c=>`
+    <div class="stat-card">
+      <div class="stat-icon" style="background:${c.bg};color:${c.color}">${c.icon}</div>
+      <div class="stat-value">${c.val}</div>
+      <div class="stat-label">${c.label}</div>
+    </div>`).join('');
+}
+
+/* ---------- 事件绑定 ---------- */
+
+// 视图筛选
+$$('.nav-item[data-filter]').forEach(n=>{
+  n.addEventListener('click',()=>{
+    state.currentFilter=n.dataset.filter; state.currentCat=null;
+    track('filter_change',{filter:n.dataset.filter});
+    render(); saveData();
+  });
+});
+
+// 分类筛选（事件委托）
+$('#catList').addEventListener('click',e=>{
+  const n=e.target.closest('[data-cat]');
+  if(!n) return;
+  state.currentFilter='cat'; state.currentCat=n.dataset.cat;
+  track('filter_change',{filter:'cat',cat:n.dataset.cat});
+  render(); saveData();
+});
+
+// 搜索
+$('#searchInput').addEventListener('input',()=>{ render(); });
+$('#searchInput').addEventListener('focus',()=>track('search_focus'));
+
+// 主题切换
+$('#themeToggle').addEventListener('click',()=>{
+  state.theme = state.theme==='dark'?'light':'dark';
+  document.documentElement.setAttribute('data-theme',state.theme);
+  track('theme_toggle',{theme:state.theme});
+  saveData();
+  toast(state.theme==='dark'?'已切换到深色模式':'已切换到浅色模式');
+});
+
+// FAB 添加
+$('#fab').addEventListener('click',()=>{
+  $('#quickAdd').classList.add('show');
+  $('#qaTitle').focus();
+  track('add_task_open');
+});
+$('#qaCancel').addEventListener('click',()=>{
+  $('#quickAdd').classList.remove('show');
+  resetQuickAdd();
+});
+
+// 快速添加字段
+let qaState = {cat:'inbox',priority:'medium',date:''};
+$('#qaCatBtn').addEventListener('click',()=>showCatPicker('qa'));
+$('#qaPriBtn').addEventListener('click',()=>showPriPicker('qa'));
+$('#qaDateBtn').addEventListener('click',()=>showDatePicker('qa'));
+
+$('#qaTitle').addEventListener('keydown',e=>{
+  if(e.key==='Enter'){ e.preventDefault(); submitQuickAdd(); }
+});
+$('#qaSubmit').addEventListener('click',submitQuickAdd);
+
+function resetQuickAdd(){
+  qaState={cat:'inbox',priority:'medium',date:''};
+  $('#qaTitle').value='';
+  $('#qaCatLabel').textContent='收件箱';
+  $('#qaPriLabel').textContent='中优先级';
+  $('#qaDateLabel').textContent='无日期';
+}
+
+function submitQuickAdd(){
+  const title=$('#qaTitle').value.trim();
+  if(!title){ toast('请输入任务标题','warn'); return; }
+  const task={id:uid(),title,note:'',cat:qaState.cat,priority:qaState.priority,date:qaState.date,done:false,createdAt:Date.now()};
+  state.tasks.unshift(task);
+  saveData(); render(); resetQuickAdd();
+  $('#quickAdd').classList.remove('show');
+  track('task_create',{priority:task.priority,hasDate:!!task.date,cat:task.cat});
+  toast('任务已添加 ✓');
+}
+
+// 任务操作（事件委托）
+$('#taskList').addEventListener('click',e=>{
+  const toggle=e.target.closest('[data-toggle]');
+  const edit=e.target.closest('[data-edit]');
+  const del=e.target.closest('[data-delete]');
+  if(toggle){
+    e.stopPropagation();
+    const t=state.tasks.find(x=>x.id===toggle.dataset.toggle);
+    if(t){ t.done=!t.done; saveData(); render();
+      track('task_toggle',{done:t.done});
+      if(t.done) toast('完成！干得漂亮 🎉');
+    }
+  }else if(del){
+    e.stopPropagation();
+    const id=del.dataset.delete;
+    state.tasks=state.tasks.filter(x=>x.id!==id);
+    saveData(); render();
+    track('task_delete');
+    toast('任务已删除');
+  }else if(edit){
+    openEditModal(edit.dataset.edit);
+  }
+});
+
+/* ---------- 编辑弹窗 ---------- */
+let editingId=null;
+function openEditModal(id){
+  const t=state.tasks.find(x=>x.id===id);
+  if(!t) return;
+  editingId=id;
+  $('#editTitle').value=t.title;
+  $('#editNote').value=t.note||'';
+  $('#editDate').value=t.date||'';
+  // 分类下拉
+  $('#editCat').innerHTML = state.cats.map(c=>`<option value="${c.id}" ${c.id===t.cat?'selected':''}>${esc(c.name)}</option>`).join('');
+  // 优先级
+  $$('#editPriGroup .option-btn').forEach(b=>{
+    b.classList.toggle('selected', b.dataset.pri===t.priority);
+  });
+  $('#editModal').classList.add('show');
+  track('task_edit_open');
+}
+$$('#editPriGroup .option-btn').forEach(b=>{
+  b.addEventListener('click',()=>{
+    $$('#editPriGroup .option-btn').forEach(x=>x.classList.remove('selected'));
+    b.classList.add('selected');
+  });
+});
+$('#editSave').addEventListener('click',()=>{
+  const t=state.tasks.find(x=>x.id===editingId);
+  if(!t) return;
+  const title=$('#editTitle').value.trim();
+  if(!title){ toast('标题不能为空','warn'); return; }
+  t.title=title; t.note=$('#editNote').value.trim();
+  t.date=$('#editDate').value; t.cat=$('#editCat').value;
+  t.priority=$('#editPriGroup .option-btn.selected')?.dataset.pri||'medium';
+  saveData(); render();
+  closeModal('editModal');
+  track('task_edit_save');
+  toast('已保存 ✓');
+});
+$('#editDelete').addEventListener('click',()=>{
+  state.tasks=state.tasks.filter(x=>x.id!==editingId);
+  saveData(); render();
+  closeModal('editModal');
+  track('task_delete',{from:'edit'});
+  toast('任务已删除');
+});
+
+/* ---------- 分类管理 ---------- */
+const CAT_COLORS=['#6366f1','#10b981','#f59e0b','#ef4444','#ec4899','#8b5cf6','#06b6d4','#84cc16'];
+let catColorPick=CAT_COLORS[0];
+$('#addCatBtn').addEventListener('click',()=>{
+  $('#catColorGroup').innerHTML = CAT_COLORS.map(c=>
+    `<button class="option-btn" data-color="${c}" style="${c===catColorPick?'border-color:var(--primary)':''}">
+      <span style="width:16px;height:16px;border-radius:4px;background:${c};display:inline-block"></span>
+    </button>`).join('');
+  $$('#catColorGroup .option-btn').forEach(b=>{
+    b.addEventListener('click',()=>{
+      catColorPick=b.dataset.color;
+      $$('#catColorGroup .option-btn').forEach(x=>x.style.borderColor='');
+      b.style.borderColor='var(--primary)';
+    });
+  });
+  $('#catName').value='';
+  $('#catModal').classList.add('show');
+  $('#catName').focus();
+});
+$('#catSave').addEventListener('click',()=>{
+  const name=$('#catName').value.trim();
+  if(!name){ toast('请输入分类名称','warn'); return; }
+  state.cats.push({id:uid(),name,color:catColorPick});
+  saveData(); render();
+  closeModal('catModal');
+  track('category_create');
+  toast('分类已创建 ✓');
+});
+
+/* ---------- 选择器（快速添加用简单弹窗） ---------- */
+function showCatPicker(ctx){
+  const opts=state.cats.map(c=>`${c.id}:${c.name}`).join('\n');
+  // 用原生 prompt 简化原型交互
+  const idx = state.cats.findIndex(c=>c.id===qaState.cat);
+  const names = state.cats.map((c,i)=>`${i+1}. ${c.name}`).join('\n');
+  const input = prompt('选择分类（输入序号）:\n'+names, idx+1);
+  if(input){
+    const i=parseInt(input)-1;
+    if(i>=0 && i<state.cats.length){
+      qaState.cat=state.cats[i].id;
+      $('#qaCatLabel').textContent=state.cats[i].name;
+      track('qa_cat_pick',{cat:state.cats[i].id});
+    }
+  }
+}
+function showPriPicker(ctx){
+  const map={'1':'high','2':'medium','3':'low'};
+  const input=prompt('选择优先级:\n1. 高\n2. 中\n3. 低', '2');
+  if(input && map[input]){
+    qaState.priority=map[input];
+    $('#qaPriLabel').textContent=priFullLabel(map[input]);
+    track('qa_pri_pick',{priority:map[input]});
+  }
+}
+function showDatePicker(ctx){
+  const input=prompt('输入截止日期 (YYYY-MM-DD)，或输入:\ntoday / tomorrow / 日期留空取消', qaState.date||'');
+  if(input!==null){
+    if(input.toLowerCase()==='today') qaState.date=todayStr();
+    else if(input.toLowerCase()==='tomorrow') qaState.date=addDays(1);
+    else if(input==='') qaState.date='';
+    else if(/^\d{4}-\d{2}-\d{2}$/.test(input)) qaState.date=input;
+    else { toast('日期格式不正确','warn'); return; }
+    $('#qaDateLabel').textContent=qaState.date?formatDate(qaState.date):'无日期';
+    track('qa_date_pick',{hasDate:!!qaState.date});
+  }
+}
+
+/* ---------- 清空数据 ---------- */
+$('#clearDataBtn').addEventListener('click',()=>{
+  if(confirm('确定要清空所有任务和分类数据吗？此操作不可恢复。')){
+    state={tasks:[],cats:[...DEFAULT_CATS],theme:state.theme,currentFilter:'all',currentCat:null};
+    saveData(); render();
+    track('data_clear');
+    toast('数据已清空');
+  }
+});
+
+/* ---------- 反馈收集 ---------- */
+let fbType=null, fbRating=0;
+$('#feedbackBtn').addEventListener('click',()=>{
+  $('#feedbackModal').classList.add('show');
+  fbType=null; fbRating=0;
+  $('#fbContent').value=''; $('#fbEmail').value='';
+  $$('.fb-type').forEach(t=>t.classList.remove('selected'));
+  // 渲染星级
+  $('#ratingStars').innerHTML = [1,2,3,4,5].map(i=>`
+    <div class="rating-star" data-val="${i}">
+      <svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg>
+    </div>`).join('');
+  $$('#ratingStars .rating-star').forEach(s=>{
+    s.addEventListener('click',()=>{
+      fbRating=parseInt(s.dataset.val);
+      $$('#ratingStars .rating-star').forEach(x=>{
+        x.classList.toggle('active', parseInt(x.dataset.val)<=fbRating);
+      });
+    });
+  });
+  track('feedback_open');
+});
+$$('.fb-type').forEach(t=>{
+  t.addEventListener('click',()=>{
+    $$('.fb-type').forEach(x=>x.classList.remove('selected'));
+    t.classList.add('selected');
+    fbType=t.dataset.type;
+  });
+});
+$('#fbSubmit').addEventListener('click',()=>{
+  const content=$('#fbContent').value.trim();
+  if(!fbType && !content && !fbRating){ toast('请选择反馈类型或填写说明','warn'); return; }
+  const fb={id:uid(),type:fbType,rating:fbRating,content,email:$('#fbEmail').value.trim(),ts:Date.now()};
+  // 存储反馈
+  try{
+    const list=JSON.parse(localStorage.getItem(FEEDBACK_KEY))||[];
+    list.push(fb);
+    localStorage.setItem(FEEDBACK_KEY,JSON.stringify(list));
+  }catch(e){}
+  track('feedback_submit',{type:fbType,rating:fbRating,hasContent:!!content});
+  closeModal('feedbackModal');
+  toast('感谢你的反馈！❤');
+});
+
+/* ---------- 弹窗通用 ---------- */
+function closeModal(id){ $('#'+id).classList.remove('show'); }
+$$('[data-close]').forEach(b=>b.addEventListener('click',()=>closeModal(b.dataset.close)));
+$$('.modal-overlay').forEach(o=>o.addEventListener('click',e=>{ if(e.target===o) o.classList.remove('show'); }));
+document.addEventListener('keydown',e=>{ if(e.key==='Escape') $$('.modal-overlay.show').forEach(o=>o.classList.remove('show')); });
+
+/* ---------- Toast ---------- */
+function toast(msg,type='ok'){
+  const icon = type==='warn'
+    ? '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><path d="M12 9v4M12 17h.01"/></svg>'
+    : '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><path d="M22 4L12 14.01l-3-3"/></svg>';
+  const el=document.createElement('div');
+  el.className='toast'; el.innerHTML=icon+'<span>'+esc(msg)+'</span>';
+  $('#toastWrap').appendChild(el);
+  setTimeout(()=>{ el.style.opacity='0'; el.style.transform='translateY(10px)'; setTimeout(()=>el.remove(),250); },2500);
+}
+
+/* ---------- 初始化 ---------- */
+document.documentElement.setAttribute('data-theme',state.theme);
+track('app_open',{taskCount:state.tasks.length});
+render();
+
+// 首次访问引导反馈（5秒后提示一次）
+if(!localStorage.getItem('taskflow_visited')){
+  localStorage.setItem('taskflow_visited','1');
+  setTimeout(()=>{
+    toast('欢迎使用 TaskFlow！点击右上角气泡分享反馈');
+  },1500);
+}
+</script>
+</body>
+</html>
