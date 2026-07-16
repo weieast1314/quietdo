@@ -1,0 +1,158 @@
+name: Draft multi-platform release
+
+on:
+  workflow_dispatch:
+    inputs:
+      release_tag:
+        description: Semantic version tag matching tauri.conf.json (for example v0.4.0)
+        required: true
+        type: string
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release-${{ inputs.release_tag }}
+  cancel-in-progress: false
+
+jobs:
+  verify:
+    name: Verify release source
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22.13.0
+          cache: npm
+          cache-dependency-path: apps/web/package-lock.json
+      - name: Validate tag and version
+        id: version
+        env:
+          RELEASE_TAG: ${{ inputs.release_tag }}
+        run: |
+          VERSION=$(node -e "const fs=require('fs'); console.log(JSON.parse(fs.readFileSync('apps/desktop/src-tauri/tauri.conf.json','utf8')).version)")
+          if [ "$RELEASE_TAG" != "v$VERSION" ]; then
+            echo "release_tag must be v$VERSION, received $RELEASE_TAG" >&2
+            exit 1
+          fi
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+      - name: Install Web dependencies
+        working-directory: apps/web
+        run: npm ci
+      - name: Lint Web application
+        working-directory: apps/web
+        run: npm run lint
+      - name: Build and test Web application
+        working-directory: apps/web
+        run: npm test
+
+  desktop:
+    name: ${{ matrix.name }} preview package
+    needs: verify
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: macOS universal
+            platform: macos-latest
+            rust_targets: aarch64-apple-darwin,x86_64-apple-darwin
+            args: --target universal-apple-darwin --bundles app,dmg
+          - name: Windows x64
+            platform: windows-latest
+            rust_targets: x86_64-pc-windows-msvc
+            args: --target x86_64-pc-windows-msvc --bundles nsis
+          - name: Linux x64
+            platform: ubuntu-22.04
+            rust_targets: x86_64-unknown-linux-gnu
+            args: --target x86_64-unknown-linux-gnu --bundles deb,appimage
+    runs-on: ${{ matrix.platform }}
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install Linux system dependencies
+        if: matrix.platform == 'ubuntu-22.04'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22.13.0
+          cache: npm
+          cache-dependency-path: apps/desktop/package-lock.json
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.rust_targets }}
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: apps/desktop/src-tauri -> target
+      - name: Install native dependencies
+        working-directory: apps/desktop
+        run: npm ci
+      - name: Build and attach package to draft release
+        uses: tauri-apps/tauri-action@v0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          projectPath: apps/desktop
+          tagName: ${{ inputs.release_tag }}
+          releaseName: QuietDo ${{ needs.verify.outputs.version }}
+          releaseBody: |
+            Automated preview artifacts. macOS is ad-hoc signed and not notarized; Windows and Linux are experimental. Review docs/DISTRIBUTION.md before publishing this draft.
+          releaseDraft: true
+          prerelease: true
+          args: ${{ matrix.args }}
+
+  android:
+    name: Android ARM preview package
+    needs: [verify, desktop]
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22.13.0
+          cache: npm
+          cache-dependency-path: apps/desktop/package-lock.json
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 21
+          cache: gradle
+      - uses: android-actions/setup-android@v3
+      - name: Install Android SDK and NDK
+        run: sdkmanager "platform-tools" "platforms;android-36" "build-tools;35.0.0" "ndk;28.0.13004108"
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: aarch64-linux-android,armv7-linux-androideabi
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: apps/desktop/src-tauri -> target
+      - name: Install native dependencies
+        working-directory: apps/desktop
+        run: npm ci
+      - name: Initialize generated Android project
+        working-directory: apps/desktop
+        run: npm run android:init -- --ci
+      - name: Build test-signed Android preview APK
+        env:
+          QUIETDO_ANDROID_OUTPUT: ${{ github.workspace }}/releases/QuietDo-${{ needs.verify.outputs.version }}-android-preview-arm.apk
+        working-directory: apps/desktop
+        run: |
+          export NDK_HOME="$ANDROID_HOME/ndk/28.0.13004108"
+          npm run android:build
+      - name: Generate checksum
+        working-directory: releases
+        run: sha256sum "QuietDo-${{ needs.verify.outputs.version }}-android-preview-arm.apk" > "QuietDo-${{ needs.verify.outputs.version }}-android-preview-arm.apk.sha256"
+      - name: Attach Android preview to draft release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release upload "${{ inputs.release_tag }}" \
+            "releases/QuietDo-${{ needs.verify.outputs.version }}-android-preview-arm.apk" \
+            "releases/QuietDo-${{ needs.verify.outputs.version }}-android-preview-arm.apk.sha256" \
+            --clobber
