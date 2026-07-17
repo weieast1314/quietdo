@@ -7,6 +7,17 @@ updates:
     groups:
       web-dependencies:
         patterns: ["*"]
+        exclude-patterns:
+          - "typescript"
+          - "@types/node"
+          - "eslint"
+          - "vinext"
+        update-types: ["minor", "patch"]
+    ignore:
+      - dependency-name: "typescript"
+        update-types: ["version-update:semver-major"]
+      - dependency-name: "@types/node"
+        update-types: ["version-update:semver-major"]
   - package-ecosystem: npm
     directory: /apps/desktop
     schedule:
@@ -14,6 +25,15 @@ updates:
     groups:
       native-frontend-dependencies:
         patterns: ["*"]
+        exclude-patterns:
+          - "typescript"
+          - "@types/node"
+        update-types: ["minor", "patch"]
+    ignore:
+      - dependency-name: "typescript"
+        update-types: ["version-update:semver-major"]
+      - dependency-name: "@types/node"
+        update-types: ["version-update:semver-major"]
   - package-ecosystem: cargo
     directory: /apps/desktop/src-tauri
     schedule:
