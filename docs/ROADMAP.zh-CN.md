@@ -3,6 +3,9 @@
 > **版本** v2.3 | **更新日期** 2026-07-16
 > 基于 [`ARCHITECTURE.zh-CN.md`](ARCHITECTURE.zh-CN.md) v2.3，状态以当前工作区实现为准。
 
+> [!NOTE]
+> 本文记录研发交付状态和技术任务；产品定位、设计原则和版本发展计划请参阅 [QuietDo 后续发展计划](PRODUCT_ROADMAP.zh-CN.md)。
+
 ## 一、Phase 1 交付状态
 
 | 模块 | 任务 | 优先级 | 状态 | 验收证据 |
